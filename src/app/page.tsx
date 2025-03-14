@@ -17,15 +17,8 @@ const TETROMINOS = {
 const BOARD_WIDTH = 10
 const BOARD_HEIGHT = 20
 const INITIAL_DROP_TIME = 800
-const SPEED_INCREASE_FACTOR = 0.95
-
-const createEmptyBoard = () => Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(0))
-
-const randomTetromino = () => {
-  const keys = Object.keys(TETROMINOS)
-  const randKey = keys[Math.floor(Math.random() * keys.length)]
-  return TETROMINOS[randKey]
-}
+const SPEED_INCREASE_FACTOR = 0.95 // Factor to decrease drop time for each level
+const POINTS_PER_LEVEL = 500 // Points needed to advance to next level
 
 // Board reducer to optimize state updates
 const boardReducer = (state, action) => {
@@ -41,6 +34,14 @@ const boardReducer = (state, action) => {
   }
 }
 
+const createEmptyBoard = () => Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(0))
+
+const randomTetromino = () => {
+  const keys = Object.keys(TETROMINOS)
+  const randKey = keys[Math.floor(Math.random() * keys.length)]
+  return TETROMINOS[randKey]
+}
+
 export default function Tetris() {
   const [board, dispatchBoard] = useReducer(boardReducer, createEmptyBoard())
   const [currentPiece, setCurrentPiece] = useState(null)
@@ -54,6 +55,8 @@ export default function Tetris() {
   const audioRef = useRef(null)
   const dropInterval = useRef(null)
   const previousDropTime = useRef(INITIAL_DROP_TIME)
+  const boardRef = useRef(null)
+  const touchStartRef = useRef({ x: 0, y: 0 })
 
   const checkCollision = (x, y, shape) => {
     for (let row = 0; row < shape.length; row++) {
@@ -73,28 +76,40 @@ export default function Tetris() {
   const isValidMove = (x, y, shape) => !checkCollision(x, y, shape)
 
   const moveLeft = useCallback(() => {
-    if (currentPiece && !isPaused && isValidMove(currentPiece.x - 1, currentPiece.y, currentPiece.tetromino.shape)) {
+    if (currentPiece && !isPaused && !gameOver && isValidMove(currentPiece.x - 1, currentPiece.y, currentPiece.tetromino.shape)) {
       setCurrentPiece(prev => ({ ...prev, x: prev.x - 1 }))
     }
-  }, [currentPiece, board, isPaused])
+  }, [currentPiece, board, isPaused, gameOver])
 
   const moveRight = useCallback(() => {
-    if (currentPiece && !isPaused && isValidMove(currentPiece.x + 1, currentPiece.y, currentPiece.tetromino.shape)) {
+    if (currentPiece && !isPaused && !gameOver && isValidMove(currentPiece.x + 1, currentPiece.y, currentPiece.tetromino.shape)) {
       setCurrentPiece(prev => ({ ...prev, x: prev.x + 1 }))
     }
-  }, [currentPiece, board, isPaused])
+  }, [currentPiece, board, isPaused, gameOver])
 
   const moveDown = useCallback(() => {
-    if (!currentPiece || isPaused) return
+    if (!currentPiece || isPaused || gameOver) return
     if (isValidMove(currentPiece.x, currentPiece.y + 1, currentPiece.tetromino.shape)) {
       setCurrentPiece(prev => ({ ...prev, y: prev.y + 1 }))
     } else {
       placePiece()
     }
-  }, [currentPiece, board, isPaused])
+  }, [currentPiece, board, isPaused, gameOver])
+
+  const hardDrop = useCallback(() => {
+    if (!currentPiece || isPaused || gameOver) return
+    
+    let newY = currentPiece.y
+    while (isValidMove(currentPiece.x, newY + 1, currentPiece.tetromino.shape)) {
+      newY += 1
+    }
+    
+    setCurrentPiece(prev => ({ ...prev, y: newY }))
+    placePiece()
+  }, [currentPiece, board, isPaused, gameOver])
 
   const rotate = useCallback(() => {
-    if (!currentPiece || isPaused) return
+    if (!currentPiece || isPaused || gameOver) return
     const rotated = currentPiece.tetromino.shape[0].map((_, i) =>
       currentPiece.tetromino.shape.map(row => row[i]).reverse()
     )
@@ -127,12 +142,7 @@ export default function Tetris() {
       y: newY,
       tetromino: { ...prev.tetromino, shape: rotated }
     }))
-
-    // Continue falling after rotation
-    if (isValidMove(newX, newY + 1, rotated) && newY + 1 < BOARD_HEIGHT) {
-      setCurrentPiece(prev => ({ ...prev, y: prev.y + 1 }))
-    }
-  }, [currentPiece, board, isPaused])
+  }, [currentPiece, board, isPaused, gameOver])
 
   const placePiece = useCallback(() => {
     if (!currentPiece) return
@@ -172,17 +182,23 @@ export default function Tetris() {
         dispatchBoard({ type: 'CLEAR_ROWS', newBoard: updatedBoard })
         setCompletedRows([])
         
-        const newScore = score + linesCleared.length * 100
+        // Calculate score based on number of lines cleared
+        const linePoints = [0, 100, 300, 500, 800]; // 0, 1, 2, 3, 4 lines
+        const newScore = score + linePoints[Math.min(linesCleared.length, 4)]
         setScore(newScore)
         
-        if (Math.floor(newScore / 500) > level - 1) {
-          setLevel(prev => prev + 1)
-          setDropTime(prev => prev * SPEED_INCREASE_FACTOR)
-          previousDropTime.current = dropTime * SPEED_INCREASE_FACTOR
+        // Level up after reaching points threshold
+        const newLevel = Math.floor(newScore / POINTS_PER_LEVEL) + 1
+        if (newLevel > level) {
+          setLevel(newLevel)
+          // Gradually increase speed with each level
+          const newDropTime = INITIAL_DROP_TIME * Math.pow(SPEED_INCREASE_FACTOR, newLevel - 1)
+          setDropTime(newDropTime)
+          previousDropTime.current = newDropTime
         }
       }, 500)
     }
-  }, [score, level, dropTime])
+  }, [score, level])
 
   const spawnNewPiece = useCallback(() => {
     const newPiece = {
@@ -234,13 +250,16 @@ export default function Tetris() {
         case 'ArrowUp':
           rotate()
           break
+        case 'Enter':
+          hardDrop()
+          break
         default:
           break
       }
     }
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [moveLeft, moveRight, moveDown, rotate, gameOver, isPaused])
+  }, [moveLeft, moveRight, moveDown, rotate, hardDrop, gameOver, isPaused])
 
   useEffect(() => {
     if (audioRef.current) {
@@ -253,6 +272,59 @@ export default function Tetris() {
       }
     }
   }, [gameOver, isMusicPlaying, isPaused])
+
+  // Handle touch gestures
+  useEffect(() => {
+    const handleTouchStart = (e) => {
+      if (isPaused || gameOver) return
+      const touch = e.touches[0]
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY }
+    }
+
+    const handleTouchEnd = (e) => {
+      if (isPaused || gameOver) return
+      if (e.changedTouches.length === 0) return
+      
+      const touch = e.changedTouches[0]
+      const deltaX = touch.clientX - touchStartRef.current.x
+      const deltaY = touch.clientY - touchStartRef.current.y
+      
+      // Require a minimum distance to consider it a swipe
+      const minDistance = 30
+      
+      // Determine if horizontal or vertical swipe based on which delta is larger
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        // Horizontal swipe
+        if (Math.abs(deltaX) > minDistance) {
+          if (deltaX > 0) {
+            moveRight()
+          } else {
+            moveLeft()
+          }
+        }
+      } else {
+        // Vertical swipe
+        if (Math.abs(deltaY) > minDistance) {
+          if (deltaY > 0) {
+            hardDrop()
+          } else {
+            rotate()
+          }
+        }
+      }
+    }
+
+    const boardElement = boardRef.current
+    if (boardElement) {
+      boardElement.addEventListener('touchstart', handleTouchStart)
+      boardElement.addEventListener('touchend', handleTouchEnd)
+      
+      return () => {
+        boardElement.removeEventListener('touchstart', handleTouchStart)
+        boardElement.removeEventListener('touchend', handleTouchEnd)
+      }
+    }
+  }, [moveLeft, moveRight, rotate, hardDrop, isPaused, gameOver])
 
   const resetGame = () => {
     dispatchBoard({ type: 'RESET' })
@@ -328,14 +400,9 @@ export default function Tetris() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
       <h1 className="text-4xl font-bold mb-4">Tetris</h1>
       
-      <div className="bg-white p-4 rounded-lg shadow-lg">
-        {isPaused && !gameOver && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-10 rounded-lg">
-            <div className="text-white text-3xl font-bold">PAUSED</div>
-          </div>
-        )}
-        
-        <motion.div 
+      <div className="bg-white p-4 rounded-lg shadow-lg relative">
+        <div 
+          ref={boardRef}
           className="grid bg-gray-300 relative" 
           style={{ 
             gridTemplateColumns: `repeat(${BOARD_WIDTH}, 1fr)`,
@@ -346,6 +413,20 @@ export default function Tetris() {
         >
           {renderBoard()}
           
+          {/* Pause overlay - fixed positioning */}
+          {isPaused && !gameOver && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-10 rounded-lg">
+              <div className="text-white text-3xl font-bold">PAUSED</div>
+            </div>
+          )}
+          
+          {/* Game over overlay */}
+          {gameOver && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-10 rounded-lg">
+              <div className="text-white text-3xl font-bold">GAME OVER</div>
+            </div>
+          )}
+          
           {/* Landing animation for current piece */}
           {currentPiece && (
             <motion.div
@@ -355,20 +436,19 @@ export default function Tetris() {
               exit={{ opacity: 0 }}
             />
           )}
-        </motion.div>
+        </div>
       </div>
       
-      <div className="mt-4 text-xl font-bold">Score: {score}</div>
-      <div className="mt-2 text-lg">Level: {level}</div>
+      <div className="mt-4 flex gap-4 items-center">
+        <div className="text-xl font-bold">Score: {score}</div>
+        <div className="text-lg">Level: {level}</div>
+        <div className="text-lg">Speed: {Math.round((INITIAL_DROP_TIME - dropTime) / INITIAL_DROP_TIME * 100)}%</div>
+      </div>
       
       {/* Game controls for desktop */}
       <div className="mt-2 text-sm text-gray-600 hidden md:block">
-        Press Up Arrow to rotate, Space or Escape to pause
+        Arrow keys to move, Up to rotate, Enter for hard drop, Space/Escape to pause
       </div>
-      
-      {gameOver && (
-        <div className="mt-4 text-2xl font-bold text-red-600">Game Over!</div>
-      )}
       
       {/* Desktop controls */}
       <div className="flex gap-4 mt-4">
@@ -387,6 +467,9 @@ export default function Tetris() {
       
       {/* Mobile controls */}
       <div className="flex flex-col items-center mt-6 md:hidden">
+        <div className="text-sm text-gray-600 mb-2">
+          Swipe on board: ↑ to rotate, ↓ for hard drop, ← → to move
+        </div>
         <Button onClick={rotate} className="w-16 h-16 rounded-full mb-4">
           <RotateCw className="w-8 h-8" />
         </Button>
@@ -394,7 +477,7 @@ export default function Tetris() {
           <Button onClick={moveLeft} className="w-16 h-16 rounded-full">
             <ChevronLeft className="w-8 h-8" />
           </Button>
-          <Button onClick={moveDown} className="w-16 h-16 rounded-full">
+          <Button onClick={hardDrop} className="w-16 h-16 rounded-full">
             <ChevronDown className="w-8 h-8" />
           </Button>
           <Button onClick={moveRight} className="w-16 h-16 rounded-full">
