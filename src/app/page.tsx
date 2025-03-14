@@ -1,10 +1,24 @@
 "use client"
 import React, { useState, useEffect, useCallback, useRef, useReducer } from 'react'
 import { Button } from "@/components/ui/button"
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Music, Pause, Play, ChevronLeft, ChevronRight, ChevronDown, RotateCw } from 'lucide-react'
 
-const TETROMINOS = {
+type TetrominoShape = number[][]
+type Tetromino = {
+  shape: TetrominoShape
+  color: string
+}
+
+type Piece = {
+  x: number
+  y: number
+  tetromino: Tetromino
+}
+
+type Board = (string | number)[][]
+
+const TETROMINOS: Record<string, Tetromino> = {
   I: { shape: [[1, 1, 1, 1]], color: 'bg-cyan-500' },
   J: { shape: [[1, 0, 0], [1, 1, 1]], color: 'bg-blue-500' },
   L: { shape: [[0, 0, 1], [1, 1, 1]], color: 'bg-orange-500' },
@@ -20,8 +34,12 @@ const INITIAL_DROP_TIME = 800
 const SPEED_INCREASE_FACTOR = 0.95 // Factor to decrease drop time for each level
 const POINTS_PER_LEVEL = 500 // Points needed to advance to next level
 
-// Board reducer to optimize state updates
-const boardReducer = (state, action) => {
+type BoardAction =
+  | { type: 'PLACE_PIECE'; newBoard: Board }
+  | { type: 'CLEAR_ROWS'; newBoard: Board }
+  | { type: 'RESET' }
+
+const boardReducer = (state: Board, action: BoardAction): Board => {
   switch (action.type) {
     case 'PLACE_PIECE':
       return action.newBoard
@@ -34,9 +52,8 @@ const boardReducer = (state, action) => {
   }
 }
 
-const createEmptyBoard = () => Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(0))
-
-const randomTetromino = () => {
+const createEmptyBoard = (): Board => Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(0))
+const randomTetromino = (): Tetromino => {
   const keys = Object.keys(TETROMINOS)
   const randKey = keys[Math.floor(Math.random() * keys.length)]
   return TETROMINOS[randKey]
@@ -44,21 +61,21 @@ const randomTetromino = () => {
 
 export default function Tetris() {
   const [board, dispatchBoard] = useReducer(boardReducer, createEmptyBoard())
-  const [currentPiece, setCurrentPiece] = useState(null)
+  const [currentPiece, setCurrentPiece] = useState<Piece | null>(null)
   const [score, setScore] = useState(0)
   const [gameOver, setGameOver] = useState(false)
   const [dropTime, setDropTime] = useState(INITIAL_DROP_TIME)
   const [level, setLevel] = useState(1)
   const [isMusicPlaying, setIsMusicPlaying] = useState(false)
-  const [completedRows, setCompletedRows] = useState([])
+  const [completedRows, setCompletedRows] = useState<number[]>([])
   const [isPaused, setIsPaused] = useState(false)
-  const audioRef = useRef(null)
-  const dropInterval = useRef(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const dropInterval = useRef<NodeJS.Timeout | null>(null)
   const previousDropTime = useRef(INITIAL_DROP_TIME)
-  const boardRef = useRef(null)
+  const boardRef = useRef<HTMLDivElement | null>(null)
   const touchStartRef = useRef({ x: 0, y: 0 })
 
-  const checkCollision = (x, y, shape) => {
+  const checkCollision = (x: number, y: number, shape: TetrominoShape): boolean => {
     for (let row = 0; row < shape.length; row++) {
       for (let col = 0; col < shape[row].length; col++) {
         if (shape[row][col] !== 0) {
@@ -73,24 +90,24 @@ export default function Tetris() {
     return false
   }
 
-  const isValidMove = (x, y, shape) => !checkCollision(x, y, shape)
+  const isValidMove = (x: number, y: number, shape: TetrominoShape): boolean => !checkCollision(x, y, shape)
 
   const moveLeft = useCallback(() => {
     if (currentPiece && !isPaused && !gameOver && isValidMove(currentPiece.x - 1, currentPiece.y, currentPiece.tetromino.shape)) {
-      setCurrentPiece(prev => ({ ...prev, x: prev.x - 1 }))
+      setCurrentPiece(prev => prev ? ({ ...prev, x: prev.x - 1 }) : prev)
     }
   }, [currentPiece, board, isPaused, gameOver])
 
   const moveRight = useCallback(() => {
     if (currentPiece && !isPaused && !gameOver && isValidMove(currentPiece.x + 1, currentPiece.y, currentPiece.tetromino.shape)) {
-      setCurrentPiece(prev => ({ ...prev, x: prev.x + 1 }))
+      setCurrentPiece(prev => prev ? ({ ...prev, x: prev.x + 1 }) : prev)
     }
   }, [currentPiece, board, isPaused, gameOver])
 
   const moveDown = useCallback(() => {
     if (!currentPiece || isPaused || gameOver) return
     if (isValidMove(currentPiece.x, currentPiece.y + 1, currentPiece.tetromino.shape)) {
-      setCurrentPiece(prev => ({ ...prev, y: prev.y + 1 }))
+      setCurrentPiece(prev => prev ? ({ ...prev, y: prev.y + 1 }) : prev)
     } else {
       placePiece()
     }
@@ -104,7 +121,7 @@ export default function Tetris() {
       newY += 1
     }
     
-    setCurrentPiece(prev => ({ ...prev, y: newY }))
+    setCurrentPiece(prev => prev ? ({ ...prev, y: newY }) : prev)
     placePiece()
   }, [currentPiece, board, isPaused, gameOver])
 
@@ -136,12 +153,12 @@ export default function Tetris() {
       }
     }
 
-    setCurrentPiece(prev => ({
+    setCurrentPiece(prev => prev ? ({
       ...prev,
       x: newX,
       y: newY,
       tetromino: { ...prev.tetromino, shape: rotated }
-    }))
+    }) : prev)
   }, [currentPiece, board, isPaused, gameOver])
 
   const placePiece = useCallback(() => {
