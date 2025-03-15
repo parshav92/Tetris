@@ -115,12 +115,12 @@ export default function Tetris() {
 
   const hardDrop = useCallback(() => {
     if (!currentPiece || isPaused || gameOver) return
-    
+
     let newY = currentPiece.y
     while (isValidMove(currentPiece.x, newY + 1, currentPiece.tetromino.shape)) {
       newY += 1
     }
-    
+
     setCurrentPiece(prev => prev ? ({ ...prev, y: newY }) : prev)
     placePiece()
   }, [currentPiece, board, isPaused, gameOver])
@@ -181,40 +181,47 @@ export default function Tetris() {
   }, [currentPiece, board])
 
   const clearLines = useCallback((newBoard) => {
-    let linesCleared = []
-    const updatedBoard = newBoard.filter((row, index) => {
-      if (row.every(cell => cell !== 0)) {
-        linesCleared.push(index)
-        return false
+    const clear = (board) => {
+      let linesCleared = []
+      const updatedBoard = board.filter((row, index) => {
+        if (row.every(cell => cell !== 0)) {
+          linesCleared.push(index)
+          return false
+        }
+        return true
+      })
+
+      if (linesCleared.length > 0) {
+        setCompletedRows(linesCleared)
+        setTimeout(() => {
+          while (updatedBoard.length < BOARD_HEIGHT) {
+            updatedBoard.unshift(Array(BOARD_WIDTH).fill(0))
+          }
+          dispatchBoard({ type: 'CLEAR_ROWS', newBoard: updatedBoard })
+          setCompletedRows([])
+
+          // Calculate score based on number of lines cleared
+          const linePoints = [0, 100, 300, 500, 800]; // 0, 1, 2, 3, 4 lines
+          const newScore = score + linePoints[Math.min(linesCleared.length, 4)]
+          setScore(newScore)
+
+          // Level up after reaching points threshold
+          const newLevel = Math.floor(newScore / POINTS_PER_LEVEL) + 1
+          if (newLevel > level) {
+            setLevel(newLevel)
+            // Gradually increase speed with each level
+            const newDropTime = INITIAL_DROP_TIME * Math.pow(SPEED_INCREASE_FACTOR, newLevel - 1)
+            setDropTime(newDropTime)
+            previousDropTime.current = newDropTime
+          }
+
+          // Recursively clear lines if new lines are formed
+          clear(updatedBoard)
+        }, 500)
       }
-      return true
-    })
-    
-    if (linesCleared.length > 0) {
-      setCompletedRows(linesCleared)
-      setTimeout(() => {
-        while (updatedBoard.length < BOARD_HEIGHT) {
-          updatedBoard.unshift(Array(BOARD_WIDTH).fill(0))
-        }
-        dispatchBoard({ type: 'CLEAR_ROWS', newBoard: updatedBoard })
-        setCompletedRows([])
-        
-        // Calculate score based on number of lines cleared
-        const linePoints = [0, 100, 300, 500, 800]; // 0, 1, 2, 3, 4 lines
-        const newScore = score + linePoints[Math.min(linesCleared.length, 4)]
-        setScore(newScore)
-        
-        // Level up after reaching points threshold
-        const newLevel = Math.floor(newScore / POINTS_PER_LEVEL) + 1
-        if (newLevel > level) {
-          setLevel(newLevel)
-          // Gradually increase speed with each level
-          const newDropTime = INITIAL_DROP_TIME * Math.pow(SPEED_INCREASE_FACTOR, newLevel - 1)
-          setDropTime(newDropTime)
-          previousDropTime.current = newDropTime
-        }
-      }, 500)
     }
+
+    clear(newBoard)
   }, [score, level])
 
   const spawnNewPiece = useCallback(() => {
@@ -246,14 +253,14 @@ export default function Tetris() {
   useEffect(() => {
     const handleKeyPress = (e) => {
       if (gameOver) return
-      
+
       if (e.key === ' ' || e.key === 'Escape') {
         togglePause()
         return
       }
-      
+
       if (isPaused) return
-      
+
       switch (e.key) {
         case 'ArrowLeft':
           moveLeft()
@@ -301,14 +308,14 @@ export default function Tetris() {
     const handleTouchEnd = (e) => {
       if (isPaused || gameOver) return
       if (e.changedTouches.length === 0) return
-      
+
       const touch = e.changedTouches[0]
       const deltaX = touch.clientX - touchStartRef.current.x
       const deltaY = touch.clientY - touchStartRef.current.y
-      
+
       // Require a minimum distance to consider it a swipe
       const minDistance = 30
-      
+
       // Determine if horizontal or vertical swipe based on which delta is larger
       if (Math.abs(deltaX) > Math.abs(deltaY)) {
         // Horizontal swipe
@@ -335,7 +342,7 @@ export default function Tetris() {
     if (boardElement) {
       boardElement.addEventListener('touchstart', handleTouchStart)
       boardElement.addEventListener('touchend', handleTouchEnd)
-      
+
       return () => {
         boardElement.removeEventListener('touchstart', handleTouchStart)
         boardElement.removeEventListener('touchend', handleTouchEnd)
@@ -358,7 +365,7 @@ export default function Tetris() {
 
   const togglePause = () => {
     if (gameOver) return
-    
+
     setIsPaused(prev => {
       if (!prev) {
         // Pausing the game
@@ -374,12 +381,12 @@ export default function Tetris() {
   }
 
   const renderBoard = () => {
-    return board.map((row, y) => 
+    return board.map((row, y) =>
       row.map((_, x) => {
         // Check if current cell has current piece
         let cellContent = null
         let cellColor = board[y][x] || 'bg-gray-100'
-        
+
         if (
           currentPiece &&
           y >= currentPiece.y &&
@@ -390,9 +397,9 @@ export default function Tetris() {
         ) {
           cellColor = currentPiece.tetromino.color
         }
-        
+
         return (
-          <motion.div 
+          <motion.div
             key={`${y}-${x}`}
             initial={false}
             animate={{
@@ -416,12 +423,12 @@ export default function Tetris() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
       <h1 className="text-4xl font-bold mb-4">Tetris</h1>
-      
+
       <div className="bg-white p-4 rounded-lg shadow-lg relative">
-        <div 
+        <div
           ref={boardRef}
-          className="grid bg-gray-300 relative" 
-          style={{ 
+          className="grid bg-gray-300 relative"
+          style={{
             gridTemplateColumns: `repeat(${BOARD_WIDTH}, 1fr)`,
             width: `${BOARD_WIDTH * 20}px`,
             height: `${BOARD_HEIGHT * 20}px`,
@@ -429,21 +436,21 @@ export default function Tetris() {
           }}
         >
           {renderBoard()}
-          
+
           {/* Pause overlay - fixed positioning */}
           {isPaused && !gameOver && (
             <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-10 rounded-lg">
               <div className="text-white text-3xl font-bold">PAUSED</div>
             </div>
           )}
-          
+
           {/* Game over overlay */}
           {gameOver && (
             <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-10 rounded-lg">
               <div className="text-white text-3xl font-bold">GAME OVER</div>
             </div>
           )}
-          
+
           {/* Landing animation for current piece */}
           {currentPiece && (
             <motion.div
@@ -455,18 +462,18 @@ export default function Tetris() {
           )}
         </div>
       </div>
-      
+
       <div className="mt-4 flex gap-4 items-center">
         <div className="text-xl font-bold">Score: {score}</div>
         <div className="text-lg">Level: {level}</div>
         <div className="text-lg">Speed: {Math.round((INITIAL_DROP_TIME - dropTime) / INITIAL_DROP_TIME * 100)}%</div>
       </div>
-      
+
       {/* Game controls for desktop */}
       <div className="mt-2 text-sm text-gray-600 hidden md:block">
         Arrow keys to move, Up to rotate, Enter for hard drop, Space/Escape to pause
       </div>
-      
+
       {/* Desktop controls */}
       <div className="flex gap-4 mt-4">
         <Button onClick={resetGame}>
@@ -481,7 +488,7 @@ export default function Tetris() {
           {isMusicPlaying ? 'Stop Music' : 'Play Music'}
         </Button>
       </div>
-      
+
       {/* Mobile controls */}
       <div className="flex flex-col items-center mt-6 md:hidden">
         <div className="text-sm text-gray-600 mb-2">
@@ -502,7 +509,7 @@ export default function Tetris() {
           </Button>
         </div>
       </div>
-      
+
       <audio ref={audioRef} src="/Tetris.mp3" />
     </div>
   )
