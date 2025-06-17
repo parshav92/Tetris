@@ -79,6 +79,9 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 10, 10, 31;
+  --background-end-rgb: 26, 26, 63;
 }
 
 .dark {
@@ -123,4 +126,242 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Retro container with scanlines effect */
+.retro-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.retro-container::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15) 0px,
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+}
+
+/* Arcade frame styling */
+.arcade-frame {
+  background: linear-gradient(45deg, #1a1a2e, #2a2a3e);
+  border: 4px solid #304050;
+  box-shadow: 
+    0 0 20px rgba(0, 0, 0, 0.5),
+    inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Game board styling */
+.game-board {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  background: linear-gradient(
+    to bottom,
+    rgba(10, 10, 31, 0.9),
+    rgba(26, 26, 63, 0.9)
+  );
+  box-shadow: 
+    0 0 20px rgba(0, 0, 0, 0.3),
+    inset 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+/* Grid lines */
+.game-board::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 25px 25px;
+  pointer-events: none;
+}
+
+/* Retro text styling */
+.retro-text {
+  font-family: 'Press Start 2P', monospace;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+/* Glow effects for different colors */
+.glow-text {
+  text-shadow: 
+    0 0 10px rgba(255, 255, 255, 0.7),
+    0 0 20px rgba(255, 255, 255, 0.5),
+    0 0 30px rgba(255, 255, 255, 0.3);
+}
+
+.glow-cyan { 
+  box-shadow: 
+    0 0 15px rgba(6, 182, 212, 0.5),
+    inset 0 0 8px rgba(6, 182, 212, 0.3);
+}
+.glow-blue { 
+  box-shadow: 
+    0 0 15px rgba(59, 130, 246, 0.5),
+    inset 0 0 8px rgba(59, 130, 246, 0.3);
+}
+.glow-orange { 
+  box-shadow: 
+    0 0 15px rgba(249, 115, 22, 0.5),
+    inset 0 0 8px rgba(249, 115, 22, 0.3);
+}
+.glow-yellow { 
+  box-shadow: 
+    0 0 15px rgba(234, 179, 8, 0.5),
+    inset 0 0 8px rgba(234, 179, 8, 0.3);
+}
+.glow-green { 
+  box-shadow: 
+    0 0 15px rgba(34, 197, 94, 0.5),
+    inset 0 0 8px rgba(34, 197, 94, 0.3);
+}
+.glow-purple { 
+  box-shadow: 
+    0 0 15px rgba(168, 85, 247, 0.5),
+    inset 0 0 8px rgba(168, 85, 247, 0.3);
+}
+.glow-red { 
+  box-shadow: 
+    0 0 15px rgba(239, 68, 68, 0.5),
+    inset 0 0 8px rgba(239, 68, 68, 0.3);
+}
+
+/* Retro button styling */
+.retro-button {
+  background: linear-gradient(45deg, #2a2a3e, #3a3a4e) !important;
+  border: 2px solid #304050 !important;
+  color: white !important;
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 0.8rem !important;
+  text-transform: uppercase !important;
+  transition: all 0.2s ease !important;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 
+    0 4px 6px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+.retro-button:hover {
+  background: linear-gradient(45deg, #3a3a4e, #4a4a5e) !important;
+  box-shadow: 
+    0 0 10px rgba(255, 255, 255, 0.2),
+    inset 0 0 10px rgba(255, 255, 255, 0.1) !important;
+  transform: translateY(-1px) !important;
+}
+
+.retro-button:active {
+  transform: translateY(1px) !important;
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Stats panel styling */
+.stats-panel {
+  border: 2px solid #304050;
+  background: linear-gradient(45deg, rgba(26, 26, 63, 0.8), rgba(42, 42, 83, 0.8));
+}
+
+/* Mobile controls styling */
+.mobile-controls {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* Animation for line clear */
+@keyframes lineFlash {
+  0% { 
+    opacity: 1;
+    transform: scaleY(1);
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+  50% { 
+    opacity: 1;
+    transform: scaleY(1.2);
+    background-color: rgba(255, 255, 255, 0.8);
+  }
+  100% { 
+    opacity: 0;
+    transform: scaleY(0.1);
+    background-color: rgba(255, 255, 255, 1);
+  }
+}
+
+.line-clear {
+  animation: lineFlash 0.5s ease-in-out;
+  position: relative;
+}
+
+.line-clear::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.8) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: sweep 0.5s ease-in-out;
+}
+
+@keyframes sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Cascade animation for blocks above cleared line */
+@keyframes fallDown {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.falling {
+  animation: fallDown 0.3s ease-in;
+}
+
+/* CRT power off animation */
+@keyframes crtOff {
+  0% { 
+    transform: scale(1);
+    opacity: 1;
+  }
+  60% { 
+    transform: scale(1.2, 0.001);
+    opacity: 0.8;
+  }
+  100% { 
+    transform: scale(0, 0.001);
+    opacity: 0;
+  }
+}
+
+.crt-off {
+  animation: crtOff 0.4s ease-in-out forwards;
 }
