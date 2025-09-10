@@ -1,7 +1,7 @@
 "use client"
 import React, { useState, useEffect, useCallback, useRef, useReducer } from 'react'
 import { Button } from "@/components/ui/button"
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Music, Pause, Play, ChevronLeft, ChevronRight, ChevronDown, RotateCw } from 'lucide-react'
 
 type TetrominoShape = number[][]
@@ -30,9 +30,9 @@ const TETROMINOS: Record<string, Tetromino> = {
 
 const BOARD_WIDTH = 10
 const BOARD_HEIGHT = 20
-const INITIAL_DROP_TIME = 800
-const SPEED_INCREASE_FACTOR = 0.95 // Factor to decrease drop time for each level
-const POINTS_PER_LEVEL = 500 // Points needed to advance to next level
+const INITIAL_DROP_TIME = 560 // Reduced from 800 to 560 (30% faster)
+const SPEED_INCREASE_FACTOR = 0.92 // Increased from 0.95 for faster progression
+const POINTS_PER_LEVEL = 500
 
 type BoardAction =
   | { type: 'PLACE_PIECE'; newBoard: Board }
@@ -63,6 +63,8 @@ export default function Tetris() {
   const [board, dispatchBoard] = useReducer(boardReducer, createEmptyBoard())
   const [currentPiece, setCurrentPiece] = useState<Piece | null>(null)
   const [score, setScore] = useState(0)
+  const [highScore, setHighScore] = useState(0)
+  const [linesCleared, setLinesCleared] = useState(0)
   const [gameOver, setGameOver] = useState(false)
   const [dropTime, setDropTime] = useState(INITIAL_DROP_TIME)
   const [level, setLevel] = useState(1)
@@ -80,32 +82,34 @@ export default function Tetris() {
   const clearSound = useRef<HTMLAudioElement>(null)
   const gameOverSound = useRef<HTMLAudioElement>(null)
 
-  const checkCollision = (x: number, y: number, shape: TetrominoShape): boolean => {
-    for (let row = 0; row < shape.length; row++) {
-      for (let col = 0; col < shape[row].length; col++) {
-        if (shape[row][col] !== 0) {
-          const newX = x + col
-          const newY = y + row
-          if (newX < 0 || newX >= BOARD_WIDTH || newY >= BOARD_HEIGHT || (newY >= 0 && board[newY][newX] !== 0)) {
-            return true
-          }
-        }
+  // Load high score from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedHighScore = localStorage.getItem('tetris-high-score')
+      if (savedHighScore) {
+        setHighScore(parseInt(savedHighScore, 10))
       }
     }
-    return false
-  }
+  }, [])
 
-  const isValidMove = (x: number, y: number, shape: TetrominoShape): boolean => !checkCollision(x, y, shape)
-
+  // Save high score when game ends
   useEffect(() => {
-    // Initialize sound effects
+    if (gameOver && score > highScore) {
+      setHighScore(score)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('tetris-high-score', score.toString())
+      }
+    }
+  }, [gameOver, score, highScore])
+
+  // Initialize sound effects
+  useEffect(() => {
     if (!moveSound.current) moveSound.current = new Audio('/sounds/move.mp3')
     if (!rotateSound.current) rotateSound.current = new Audio('/sounds/rotate.mp3')
     if (!dropSound.current) dropSound.current = new Audio('/sounds/drop.mp3')
     if (!clearSound.current) clearSound.current = new Audio('/sounds/clear.mp3')
     if (!gameOverSound.current) gameOverSound.current = new Audio('/sounds/gameover.mp3')
 
-    // Set volume for all sounds
     const sounds = [moveSound, rotateSound, dropSound, clearSound, gameOverSound]
     sounds.forEach(sound => {
       if (sound.current) {
@@ -121,19 +125,109 @@ export default function Tetris() {
     }
   }, [])
 
+  const checkCollision = useCallback((x: number, y: number, shape: TetrominoShape): boolean => {
+    for (let row = 0; row < shape.length; row++) {
+      for (let col = 0; col < shape[row].length; col++) {
+        if (shape[row][col] !== 0) {
+          const newX = x + col
+          const newY = y + row
+          if (newX < 0 || newX >= BOARD_WIDTH || newY >= BOARD_HEIGHT || (newY >= 0 && board[newY][newX] !== 0)) {
+            return true
+          }
+        }
+      }
+    }
+    return false
+  }, [board])
+
+  const isValidMove = useCallback((x: number, y: number, shape: TetrominoShape): boolean => 
+    !checkCollision(x, y, shape), [checkCollision])
+
+  const spawnNewPiece = useCallback(() => {
+    const newPiece = {
+      x: Math.floor(BOARD_WIDTH / 2) - 1,
+      y: 0,
+      tetromino: randomTetromino()
+    }
+    if (checkCollision(newPiece.x, newPiece.y, newPiece.tetromino.shape)) {
+      setGameOver(true)
+      playSound(gameOverSound)
+    } else {
+      setCurrentPiece(newPiece)
+    }
+  }, [checkCollision, playSound])
+
+  const clearLines = useCallback((newBoard: Board) => {
+    const getFullLines = (board: Board) =>
+      board.reduce<number[]>((acc, row, idx) =>
+        row.every(cell => cell !== 0) ? [...acc, idx] : acc, []);
+
+    const clear = (board: Board, accumulatedScore = 0) => {
+      const linesCleared = getFullLines(board);
+      if (linesCleared.length === 0) {
+        if (accumulatedScore > 0) {
+          const newScore = score + accumulatedScore;
+          setScore(newScore);
+          setLinesCleared(prev => prev + Math.min(linesCleared.length, 4));
+          const newLevel = Math.floor(newScore / POINTS_PER_LEVEL) + 1;
+          if (newLevel > level) {
+            setLevel(newLevel);
+            const newDropTime = INITIAL_DROP_TIME * Math.pow(SPEED_INCREASE_FACTOR, newLevel - 1);
+            setDropTime(newDropTime);
+            previousDropTime.current = newDropTime;
+          }
+        }
+        return;
+      }
+      playSound(clearSound);
+      setCompletedRows(linesCleared);
+      setTimeout(() => {
+        const nextBoard = board.filter((_, idx) => !linesCleared.includes(idx));
+        while (nextBoard.length < BOARD_HEIGHT) {
+          nextBoard.unshift(Array(BOARD_WIDTH).fill(0));
+        }
+        dispatchBoard({ type: 'CLEAR_ROWS', newBoard: nextBoard });
+        setCompletedRows([]);
+        const linePoints = [0, 100, 300, 500, 800];
+        const gained = linePoints[Math.min(linesCleared.length, 4)];
+        setTimeout(() => clear(nextBoard, accumulatedScore + gained), 50);
+      }, 500);
+    };
+    clear(newBoard);
+  }, [score, level, playSound])
+
+  const placePiece = useCallback(() => {
+    if (!currentPiece) return
+    const newBoard = board.map(row => [...row])
+    currentPiece.tetromino.shape.forEach((row, y) => {
+      row.forEach((value, x) => {
+        if (value !== 0) {
+          const boardY = y + currentPiece.y
+          const boardX = x + currentPiece.x
+          if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
+            newBoard[boardY][boardX] = currentPiece.tetromino.color
+          }
+        }
+      })
+    })
+    dispatchBoard({ type: 'PLACE_PIECE', newBoard })
+    clearLines(newBoard)
+    spawnNewPiece()
+  }, [currentPiece, board, clearLines, spawnNewPiece])
+
   const moveLeft = useCallback(() => {
     if (currentPiece && !isPaused && !gameOver && isValidMove(currentPiece.x - 1, currentPiece.y, currentPiece.tetromino.shape)) {
       setCurrentPiece(prev => prev ? ({ ...prev, x: prev.x - 1 }) : prev)
       playSound(moveSound)
     }
-  }, [currentPiece, board, isPaused, gameOver, playSound])
+  }, [currentPiece, isPaused, gameOver, isValidMove, playSound])
 
   const moveRight = useCallback(() => {
     if (currentPiece && !isPaused && !gameOver && isValidMove(currentPiece.x + 1, currentPiece.y, currentPiece.tetromino.shape)) {
       setCurrentPiece(prev => prev ? ({ ...prev, x: prev.x + 1 }) : prev)
       playSound(moveSound)
     }
-  }, [currentPiece, board, isPaused, gameOver, playSound])
+  }, [currentPiece, isPaused, gameOver, isValidMove, playSound])
 
   const moveDown = useCallback(() => {
     if (!currentPiece || isPaused || gameOver) return
@@ -142,7 +236,7 @@ export default function Tetris() {
     } else {
       placePiece()
     }
-  }, [currentPiece, board, isPaused, gameOver])
+  }, [currentPiece, isPaused, gameOver, isValidMove, placePiece])
 
   const hardDrop = useCallback(() => {
     if (!currentPiece || isPaused || gameOver) return
@@ -154,8 +248,8 @@ export default function Tetris() {
 
     setCurrentPiece(prev => prev ? ({ ...prev, y: newY }) : prev)
     playSound(dropSound)
-    placePiece()
-  }, [currentPiece, board, isPaused, gameOver, playSound])
+    setTimeout(() => placePiece(), 50)
+  }, [currentPiece, isPaused, gameOver, isValidMove, playSound, placePiece])
 
   const rotate = useCallback(() => {
     if (!currentPiece || isPaused || gameOver) return
@@ -184,100 +278,71 @@ export default function Tetris() {
       tetromino: { ...prev.tetromino, shape: rotated }
     }) : prev)
     playSound(rotateSound)
-  }, [currentPiece, board, isPaused, gameOver, playSound])
+  }, [currentPiece, isPaused, gameOver, isValidMove, playSound])
 
-  const placePiece = useCallback(() => {
-    if (!currentPiece) return
-    const newBoard = board.map(row => [...row])
-    currentPiece.tetromino.shape.forEach((row, y) => {
-      row.forEach((value, x) => {
-        if (value !== 0) {
-          const boardY = y + currentPiece.y
-          const boardX = x + currentPiece.x
-          if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
-            newBoard[boardY][boardX] = currentPiece.tetromino.color
-          }
+  const togglePause = useCallback(() => {
+    if (gameOver) return
+
+    setIsPaused(prev => {
+      if (!prev) {
+        if (dropInterval.current) {
+          clearInterval(dropInterval.current)
         }
-      })
-    })
-    dispatchBoard({ type: 'PLACE_PIECE', newBoard })
-    clearLines(newBoard)
-    spawnNewPiece()
-  }, [currentPiece, board])
-
-  const clearLines = useCallback((newBoard: Board) => {
-    // Helper to check for full lines
-    const getFullLines = (board: Board) =>
-      board.reduce<number[]>((acc, row, idx) =>
-        row.every(cell => cell !== 0) ? [...acc, idx] : acc, []);
-
-    // Recursive clear function
-    const clear = (board: Board, accumulatedScore = 0) => {
-      const linesCleared = getFullLines(board);
-      if (linesCleared.length === 0) {
-        // No more lines to clear, update score/level
-        if (accumulatedScore > 0) {
-          const newScore = score + accumulatedScore;
-          setScore(newScore);
-          const newLevel = Math.floor(newScore / POINTS_PER_LEVEL) + 1;
-          if (newLevel > level) {
-            setLevel(newLevel);
-            const newDropTime = INITIAL_DROP_TIME * Math.pow(SPEED_INCREASE_FACTOR, newLevel - 1);
-            setDropTime(newDropTime);
-            previousDropTime.current = newDropTime;
-          }
-        }
-        return;
+        previousDropTime.current = dropTime
+        return true
+      } else {
+        return false
       }
-      playSound(clearSound);
-      setCompletedRows(linesCleared);
-      // Wait for animation, then remove lines and shift
-      setTimeout(() => {
-        // Remove cleared lines and add empty rows at the top
-        let nextBoard = board.filter((_, idx) => !linesCleared.includes(idx));
-        while (nextBoard.length < BOARD_HEIGHT) {
-          nextBoard.unshift(Array(BOARD_WIDTH).fill(0));
-        }
-        dispatchBoard({ type: 'CLEAR_ROWS', newBoard: nextBoard });
-        setCompletedRows([]);
-        // Score for this clear
-        const linePoints = [0, 100, 300, 500, 800];
-        const gained = linePoints[Math.min(linesCleared.length, 4)];
-        // Recursively clear if new lines are formed
-        setTimeout(() => clear(nextBoard, accumulatedScore + gained), 50);
-      }, 500);
-    };
-    clear(newBoard);
-  }, [score, level, playSound]);
+    })
+  }, [gameOver, dropTime])
 
-  const spawnNewPiece = useCallback(() => {
-    const newPiece = {
-      x: Math.floor(BOARD_WIDTH / 2) - 1,
-      y: 0,
-      tetromino: randomTetromino()
+  const resetGame = useCallback(() => {
+    dispatchBoard({ type: 'RESET' })
+    setCurrentPiece(null)
+    setScore(0)
+    setLinesCleared(0)
+    setGameOver(false)
+    setDropTime(INITIAL_DROP_TIME)
+    previousDropTime.current = INITIAL_DROP_TIME
+    setLevel(1)
+    setCompletedRows([])
+    setIsPaused(false)
+    if (dropInterval.current) {
+      clearInterval(dropInterval.current)
     }
-    if (checkCollision(newPiece.x, newPiece.y, newPiece.tetromino.shape)) {
-      setGameOver(true)
-    } else {
-      setCurrentPiece(newPiece)
-    }
-  }, [board])
+  }, [])
 
+  const toggleMusic = useCallback(() => {
+    setIsMusicPlaying(!isMusicPlaying)
+  }, [isMusicPlaying])
+
+  // Spawn new piece when needed
   useEffect(() => {
     if (!currentPiece && !gameOver) {
       spawnNewPiece()
     }
   }, [currentPiece, gameOver, spawnNewPiece])
 
+  // Drop interval
   useEffect(() => {
     if (!gameOver && !isPaused) {
       dropInterval.current = setInterval(moveDown, dropTime)
     }
-    return () => clearInterval(dropInterval.current)
+    return () => {
+      if (dropInterval.current) clearInterval(dropInterval.current)
+    }
   }, [moveDown, gameOver, dropTime, isPaused])
 
+  // Resume from pause
   useEffect(() => {
-    const handleKeyPress = (e) => {
+    if (!isPaused && !gameOver && dropInterval.current === null) {
+      dropInterval.current = setInterval(moveDown, previousDropTime.current)
+    }
+  }, [isPaused, gameOver, moveDown])
+
+  // Keyboard controls
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
       if (gameOver) return
 
       if (e.key === ' ' || e.key === 'Escape') {
@@ -309,8 +374,9 @@ export default function Tetris() {
     }
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [moveLeft, moveRight, moveDown, rotate, hardDrop, gameOver, isPaused])
+  }, [moveLeft, moveRight, moveDown, rotate, hardDrop, gameOver, isPaused, togglePause])
 
+  // Music control
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = 0.5
@@ -323,20 +389,15 @@ export default function Tetris() {
     }
   }, [gameOver, isMusicPlaying, isPaused])
 
+  // Touch controls
   useEffect(() => {
-    if (gameOver) {
-      playSound(gameOverSound)
-    }
-  }, [gameOver, playSound])
-
-  useEffect(() => {
-    const handleTouchStart = (e) => {
+    const handleTouchStart = (e: TouchEvent) => {
       if (isPaused || gameOver) return
       const touch = e.touches[0]
       touchStartRef.current = { x: touch.clientX, y: touch.clientY }
     }
 
-    const handleTouchEnd = (e) => {
+    const handleTouchEnd = (e: TouchEvent) => {
       if (isPaused || gameOver) return
       if (e.changedTouches.length === 0) return
 
@@ -377,43 +438,10 @@ export default function Tetris() {
     }
   }, [moveLeft, moveRight, rotate, hardDrop, isPaused, gameOver])
 
-  const resetGame = () => {
-    dispatchBoard({ type: 'RESET' })
-    setCurrentPiece(null)
-    setScore(0)
-    setGameOver(false)
-    setDropTime(INITIAL_DROP_TIME)
-    previousDropTime.current = INITIAL_DROP_TIME
-    setLevel(1)
-    setCompletedRows([])
-    setIsPaused(false)
-    if (dropInterval.current) {
-      clearInterval(dropInterval.current)
-    }
-  }
-
-  const togglePause = () => {
-    if (gameOver) return
-
-    setIsPaused(prev => {
-      if (!prev) {
-        if (dropInterval.current) {
-          clearInterval(dropInterval.current)
-        }
-        previousDropTime.current = dropTime
-        return true
-      } else {
-        dropInterval.current = setInterval(moveDown, previousDropTime.current)
-        return false
-      }
-    })
-  }
-
   const renderBoard = () => {
     return board.map((row, y) =>
       row.map((cell, x) => {
         const isCompletedRow = completedRows.includes(y);
-        // Always use the board's color for completed rows during animation
         let cellColor = isCompletedRow
           ? (typeof cell === 'string' && cell !== '0' ? cell : 'bg-gray-300')
           : (cell || 'bg-gray-100');
@@ -438,7 +466,6 @@ export default function Tetris() {
               scale: isCompletedRow ? [1, 1.2, 1] : 1,
               opacity: isCompletedRow ? [1, 0.5, 1] : 1,
               y: linesBelow > 0 ? [0, linesBelow * 25] : 0,
-              backgroundColor: isCompletedRow ? undefined : undefined
             }}
             transition={{
               duration: isCompletedRow ? 0.3 : linesBelow > 0 ? 0.3 : 0,
@@ -454,10 +481,6 @@ export default function Tetris() {
         );
       })
     );
-  }
-
-  const toggleMusic = () => {
-    setIsMusicPlaying(!isMusicPlaying)
   }
 
   return (
@@ -481,23 +504,23 @@ export default function Tetris() {
             >
               {renderBoard()}
 
-              {/* Pause overlay with retro styling */}
+              {/* Pause overlay */}
               {isPaused && !gameOver && (
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 rounded-lg"
+                  className="absolute inset-0 flex items-center justify-center bg-black/80 z-10"
                 >
                   <div className="text-white text-4xl font-bold retro-text glow-text">PAUSED</div>
                 </motion.div>
               )}
 
-              {/* Game over overlay with retro styling */}
+              {/* Game over overlay */}
               {gameOver && (
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 rounded-lg"
+                  className="absolute inset-0 flex items-center justify-center bg-black/80 z-10"
                 >
                   <div className="text-white text-4xl font-bold retro-text glow-text">GAME OVER</div>
                 </motion.div>
@@ -509,7 +532,9 @@ export default function Tetris() {
           <div className="flex flex-col gap-6">
             <div className="stats-panel bg-black/50 p-4 rounded-lg">
               <div className="text-2xl font-bold retro-text glow-text">Score: {score}</div>
+              <div className="text-lg retro-text">High Score: {highScore}</div>
               <div className="text-xl retro-text">Level: {level}</div>
+              <div className="text-lg retro-text">Lines: {linesCleared}</div>
               <div className="text-xl retro-text">Speed: {Math.round((INITIAL_DROP_TIME - dropTime) / INITIAL_DROP_TIME * 100)}%</div>
             </div>
 

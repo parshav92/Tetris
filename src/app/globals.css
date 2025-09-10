@@ -192,7 +192,7 @@
 
 /* Retro text styling */
 .retro-text {
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--font-press-start-2p), 'Press Start 2P', monospace;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
 }
 
