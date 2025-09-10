@@ -246,13 +246,22 @@
   border: 2px solid #304050 !important;
   color: white !important;
   font-family: 'Press Start 2P', monospace !important;
-  font-size: 0.8rem !important;
+  font-size: 0.6rem !important; /* Smaller button text */
   text-transform: uppercase !important;
   transition: all 0.2s ease !important;
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.3) !important;
   box-shadow: 
     0 4px 6px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  padding: 0.5rem 1rem !important; /* Smaller padding */
+}
+
+/* Mobile button sizing */
+@media (max-width: 768px) {
+  .retro-button {
+    font-size: 0.5rem !important; /* Even smaller for mobile */
+    padding: 0.4rem 0.8rem !important;
+  }
 }
 
 .retro-button:hover {
@@ -279,8 +288,22 @@
 /* Mobile controls styling */
 .mobile-controls {
   width: 100%;
-  max-width: 400px;
+  max-width: 350px; /* Smaller max width */
   margin: 0 auto;
+}
+
+/* Make mobile buttons smaller */
+@media (max-width: 768px) {
+  .mobile-controls .retro-button {
+    height: 3rem !important; /* Smaller height */
+    font-size: 0.4rem !important;
+    padding: 0.3rem 0.6rem !important;
+  }
+  
+  .mobile-controls .w-6 {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+  }
 }
 
 /* Animation for line clear */

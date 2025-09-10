@@ -28,9 +28,9 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-[#0A0A1F] text-white">
+        <div className="flex flex-col items-center px-4 justify-center min-h-screen bg-[#0A0A1F] text-white">
           <div className="arcade-frame p-8 rounded-lg shadow-2xl max-w-md">
-            <h1 className="text-3xl font-bold mb-4 text-center retro-text glow-text text-red-400">
+            <h1 className="text-3xl font-bold mb-4 text-center retro-text glow-text text-red-700">
               Game Error!
             </h1>
             <p className="text-center mb-6 retro-text">

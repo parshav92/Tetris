@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef, useReducer } from 'react'
 import { Button } from "@/components/ui/button"
 import { motion } from 'framer-motion'
-import { Music, Pause, Play, ChevronLeft, ChevronRight, ChevronDown, RotateCw } from 'lucide-react'
+import { Music, Pause, Play, ChevronLeft, ChevronRight, RotateCw } from 'lucide-react'
 
 type TetrominoShape = number[][]
 type Tetromino = {
@@ -78,7 +78,6 @@ export default function Tetris() {
   const touchStartRef = useRef({ x: 0, y: 0 })
   const moveSound = useRef<HTMLAudioElement>(null)
   const rotateSound = useRef<HTMLAudioElement>(null)
-  const dropSound = useRef<HTMLAudioElement>(null)
   const clearSound = useRef<HTMLAudioElement>(null)
   const gameOverSound = useRef<HTMLAudioElement>(null)
 
@@ -106,11 +105,10 @@ export default function Tetris() {
   useEffect(() => {
     if (!moveSound.current) moveSound.current = new Audio('/sounds/move.mp3')
     if (!rotateSound.current) rotateSound.current = new Audio('/sounds/rotate.mp3')
-    if (!dropSound.current) dropSound.current = new Audio('/sounds/drop.mp3')
     if (!clearSound.current) clearSound.current = new Audio('/sounds/clear.mp3')
     if (!gameOverSound.current) gameOverSound.current = new Audio('/sounds/gameover.mp3')
 
-    const sounds = [moveSound, rotateSound, dropSound, clearSound, gameOverSound]
+    const sounds = [moveSound, rotateSound, clearSound, gameOverSound]
     sounds.forEach(sound => {
       if (sound.current) {
         sound.current.volume = 0.3
@@ -140,7 +138,7 @@ export default function Tetris() {
     return false
   }, [board])
 
-  const isValidMove = useCallback((x: number, y: number, shape: TetrominoShape): boolean => 
+  const isValidMove = useCallback((x: number, y: number, shape: TetrominoShape): boolean =>
     !checkCollision(x, y, shape), [checkCollision])
 
   const spawnNewPiece = useCallback(() => {
@@ -247,9 +245,9 @@ export default function Tetris() {
     }
 
     setCurrentPiece(prev => prev ? ({ ...prev, y: newY }) : prev)
-    playSound(dropSound)
+    playSound(moveSound) // Use moveSound instead of missing dropSound
     setTimeout(() => placePiece(), 50)
-  }, [currentPiece, isPaused, gameOver, isValidMove, playSound, placePiece])
+  }, [currentPiece, isPaused, gameOver, isValidMove, playSound, placePiece, moveSound])
 
   const rotate = useCallback(() => {
     if (!currentPiece || isPaused || gameOver) return
@@ -346,6 +344,7 @@ export default function Tetris() {
       if (gameOver) return
 
       if (e.key === ' ' || e.key === 'Escape') {
+        e.preventDefault() // Prevent default spacebar behavior
         togglePause()
         return
       }
@@ -354,19 +353,20 @@ export default function Tetris() {
 
       switch (e.key) {
         case 'ArrowLeft':
+          e.preventDefault()
           moveLeft()
           break
         case 'ArrowRight':
+          e.preventDefault()
           moveRight()
           break
         case 'ArrowDown':
+          e.preventDefault()
           moveDown()
           break
         case 'ArrowUp':
+          e.preventDefault()
           rotate()
-          break
-        case 'Enter':
-          hardDrop()
           break
         default:
           break
@@ -374,7 +374,7 @@ export default function Tetris() {
     }
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [moveLeft, moveRight, moveDown, rotate, hardDrop, gameOver, isPaused, togglePause])
+  }, [moveLeft, moveRight, moveDown, rotate, gameOver, isPaused, togglePause])
 
   // Music control
   useEffect(() => {
@@ -485,8 +485,8 @@ export default function Tetris() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#0A0A1F] text-white retro-container">
-      <div className="arcade-frame p-8 rounded-lg shadow-2xl">
-        <h1 className="text-5xl font-bold mb-8 text-center retro-text glow-text">TETRIS</h1>
+      <div className="arcade-frame p-4 md:p-8 rounded-lg shadow-2xl">
+        <h1 className="text-3xl md:text-4xl font-bold mb-6 md:mb-8 text-center retro-text glow-text">TETRIS</h1>
 
         <div className="game-container flex flex-col md:flex-row gap-8">
           {/* Main game board */}
@@ -506,23 +506,23 @@ export default function Tetris() {
 
               {/* Pause overlay */}
               {isPaused && !gameOver && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="absolute inset-0 flex items-center justify-center bg-black/80 z-10"
                 >
-                  <div className="text-white text-4xl font-bold retro-text glow-text">PAUSED</div>
+                  <div className="text-white text-2xl md:text-3xl font-bold retro-text glow-text">PAUSED</div>
                 </motion.div>
               )}
 
               {/* Game over overlay */}
               {gameOver && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="absolute inset-0 flex items-center justify-center bg-black/80 z-10"
+                  className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10"
                 >
-                  <div className="text-white text-4xl font-bold retro-text glow-text">GAME OVER</div>
+                  <div className="text-white text-2xl md:text-3xl font-bold retro-text glow-text text-center">GAME OVER</div>
                 </motion.div>
               )}
             </div>
@@ -530,16 +530,16 @@ export default function Tetris() {
 
           {/* Side panel */}
           <div className="flex flex-col gap-6">
-            <div className="stats-panel bg-black/50 p-4 rounded-lg">
-              <div className="text-2xl font-bold retro-text glow-text">Score: {score}</div>
-              <div className="text-lg retro-text">High Score: {highScore}</div>
-              <div className="text-xl retro-text">Level: {level}</div>
-              <div className="text-lg retro-text">Lines: {linesCleared}</div>
-              <div className="text-xl retro-text">Speed: {Math.round((INITIAL_DROP_TIME - dropTime) / INITIAL_DROP_TIME * 100)}%</div>
+            <div className="stats-panel bg-black/50 p-4 rounded-lg mb-4">
+              <div className="text-lg md:text-xl font-bold retro-text glow-text">Score: {score}</div>
+              <div className="text-sm md:text-base retro-text">High Score: {highScore}</div>
+              <div className="text-sm md:text-base retro-text">Level: {level}</div>
+              <div className="text-sm md:text-base retro-text">Lines: {linesCleared}</div>
+              <div className="text-sm md:text-base retro-text">Speed: {Math.round((INITIAL_DROP_TIME - dropTime) / INITIAL_DROP_TIME * 100)}%</div>
             </div>
 
             {/* Controls */}
-            <div className="controls-panel bg-black/50 p-4 rounded-lg">
+            <div className="controls-panel bg-black/50 p-4 rounded-lg hidden md:block">
               <div className="flex flex-col gap-4">
                 <Button 
                   onClick={resetGame}
@@ -552,14 +552,14 @@ export default function Tetris() {
                   disabled={gameOver}
                   className="retro-button w-full"
                 >
-                  {isPaused ? <Play className="w-4 h-4 mr-2" /> : <Pause className="w-4 h-4 mr-2" />}
+                  {isPaused ? <Play className="w-3 h-3 mr-2" /> : <Pause className="w-3 h-3 mr-2" />}
                   {isPaused ? 'Resume' : 'Pause'}
                 </Button>
                 <Button 
                   onClick={toggleMusic}
                   className="retro-button w-full"
                 >
-                  <Music className="w-4 h-4 mr-2" />
+                  <Music className="w-3 h-3 mr-2" />
                   {isMusicPlaying ? 'Stop Music' : 'Play Music'}
                 </Button>
               </div>
@@ -567,22 +567,51 @@ export default function Tetris() {
           </div>
         </div>
 
-        {/* Mobile controls */}
+        {/* Mobile controls - moved above other controls */}
         <div className="mobile-controls mt-6 md:hidden">
           <div className="grid grid-cols-3 gap-4">
-            <Button onClick={moveLeft} className="retro-button h-16">
-              <ChevronLeft className="w-8 h-8" />
+            <Button onClick={moveLeft} className="retro-button h-12">
+              <ChevronLeft className="w-6 h-6" />
             </Button>
-            <Button onClick={hardDrop} className="retro-button h-16">
-              <ChevronDown className="w-8 h-8" />
+            {/* <Button onClick={hardDrop} className="retro-button h-12">
+              <ChevronDown className="w-6 h-6" />
+            </Button> */}
+            <Button onClick={moveRight} className="retro-button h-12">
+              <ChevronRight className="w-6 h-6" />
             </Button>
-            <Button onClick={moveRight} className="retro-button h-16">
-              <ChevronRight className="w-8 h-8" />
+            <Button onClick={rotate} className="retro-button w-full h-12">
+              <RotateCw className="w-6 h-6" />
             </Button>
           </div>
-          <Button onClick={rotate} className="retro-button w-full mt-4 h-16">
-            <RotateCw className="w-8 h-8" />
-          </Button>
+        </div>
+
+        {/* Desktop and mobile control buttons */}
+        <div className="mt-6 md:hidden">
+          <div className="controls-panel bg-black/50 p-4 rounded-lg">
+            <div className="flex flex-col gap-4">
+              <Button
+                onClick={resetGame}
+                className="retro-button w-full"
+              >
+                {gameOver ? 'Play Again' : 'Reset Game'}
+              </Button>
+              <Button
+                onClick={togglePause}
+                disabled={gameOver}
+                className="retro-button w-full"
+              >
+                {isPaused ? <Play className="w-3 h-3 mr-2" /> : <Pause className="w-3 h-3 mr-2" />}
+                {isPaused ? 'Resume' : 'Pause'}
+              </Button>
+              <Button
+                onClick={toggleMusic}
+                className="retro-button w-full"
+              >
+                <Music className="w-3 h-3 mr-2" />
+                {isMusicPlaying ? 'Stop Music' : 'Play Music'}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
