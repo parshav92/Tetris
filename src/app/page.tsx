@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef, useReducer } from 'react'
 import { Button } from "@/components/ui/button"
 import { motion } from 'framer-motion'
-import { Music, Pause, Play, ChevronLeft, ChevronRight, RotateCw } from 'lucide-react'
+import { Music, Pause, Play, ChevronLeft, ChevronRight, RotateCw, ChevronDown } from 'lucide-react'
 
 type TetrominoShape = number[][]
 type Tetromino = {
@@ -244,10 +244,28 @@ export default function Tetris() {
       newY += 1
     }
 
-    setCurrentPiece(prev => prev ? ({ ...prev, y: newY }) : prev)
-    playSound(moveSound) // Use moveSound instead of missing dropSound
-    setTimeout(() => placePiece(), 50)
-  }, [currentPiece, isPaused, gameOver, isValidMove, playSound, placePiece, moveSound])
+    // Create the piece at the final position and place it immediately
+    const droppedPiece = { ...currentPiece, y: newY }
+    
+    // Update the board immediately with the dropped piece
+    const newBoard = board.map(row => [...row])
+    droppedPiece.tetromino.shape.forEach((row, y) => {
+      row.forEach((value, x) => {
+        if (value !== 0) {
+          const boardY = y + droppedPiece.y
+          const boardX = x + droppedPiece.x
+          if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
+            newBoard[boardY][boardX] = droppedPiece.tetromino.color
+          }
+        }
+      })
+    })
+
+    playSound(moveSound)
+    dispatchBoard({ type: 'PLACE_PIECE', newBoard })
+    clearLines(newBoard)
+    spawnNewPiece()
+  }, [currentPiece, isPaused, gameOver, isValidMove, playSound, moveSound, board, clearLines, spawnNewPiece])
 
   const rotate = useCallback(() => {
     if (!currentPiece || isPaused || gameOver) return
@@ -368,13 +386,17 @@ export default function Tetris() {
           e.preventDefault()
           rotate()
           break
+        case 'Enter':
+          e.preventDefault()
+          hardDrop()
+          break
         default:
           break
       }
     }
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [moveLeft, moveRight, moveDown, rotate, gameOver, isPaused, togglePause])
+  }, [moveLeft, moveRight, moveDown, rotate, hardDrop, gameOver, isPaused, togglePause])
 
   // Music control
   useEffect(() => {
@@ -573,13 +595,13 @@ export default function Tetris() {
             <Button onClick={moveLeft} className="retro-button h-12">
               <ChevronLeft className="w-6 h-6" />
             </Button>
-            {/* <Button onClick={hardDrop} className="retro-button h-12">
+            <Button onClick={hardDrop} className="retro-button h-12">
               <ChevronDown className="w-6 h-6" />
-            </Button> */}
+            </Button>
             <Button onClick={moveRight} className="retro-button h-12">
               <ChevronRight className="w-6 h-6" />
             </Button>
-            <Button onClick={rotate} className="retro-button w-full h-12">
+            <Button onClick={rotate} className="retro-button col-start-3 h-12">
               <RotateCw className="w-6 h-6" />
             </Button>
           </div>
